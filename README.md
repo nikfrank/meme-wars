@@ -1,3 +1,48 @@
+# meme wars
+
+Agenda:
+
+ - client side SPA
+   - install react router
+   - make View Components
+     - two lists (results)
+     - two inputs (login)
+     - one input (create meme)
+     - two images (voting page)
+   - integrate create meme to server ...
+ - server side routing
+   - install express, get started
+   - [set up CRA proxying](https://www.google.com/search?q=create+react+app+from+a+server)
+   - POST /meme
+     - model design for Meme
+ - install postgres
+   - googling for mac, ubuntu & windows installation guide + user + password + db
+
+
+## getting started
+
+`$ npx create-react-app meme-wars`
+
+or, if your installations are ferkakte for react app version
+
+`$ git clone --branch start https://github.com/nikfrank/meme-wars`
+
+`$ cd meme-wars`
+
+`$ rm -rf .git`
+
+`$ git init`
+
+
+
+
+
+
+
+
+
+
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
