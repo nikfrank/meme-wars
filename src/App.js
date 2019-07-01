@@ -1,28 +1,36 @@
 import React from 'react';
-import logo from './logo.svg';
+
+import {
+  Route,
+  BrowserRouter as Router,
+  Switch,
+  Redirect
+} from 'react-router-dom';
+
 import './App.css';
 
-class App extends React.Component {
-  render() {
-    return (
-      <div className="App">
-        <header className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <p>
-            Edit <code>any code in src/</code> and save to build app.
-          </p>
-          <a
-              className="App-link"
-              href="https://reactjs.org"
-              target="_blank"
-              rel="noopener noreferrer"
-          >
-            MEME WARS
-          </a>
-        </header>
-      </div>
-    );
-  }
-};
+import Navbar from './Navbar';
+import Login from './Login';
+import Meme from './Meme';
+import Vote from './Vote';
+import Results from './Results';
 
-export default App;
+
+export default ()=> (
+  <Router>
+    <>
+    <Navbar />
+
+    <Switch>
+      <Route exact path='/login' component={Login} />
+      <Route exact path='/meme' component={Meme} />
+
+      <Route exact path='/vote' component={Vote} />
+      <Route exact path='/results' component={Results} />
+      <Redirect from='/' to='/login' />
+    </Switch>
+
+    <footer></footer>
+    </>
+  </Router>
+);
