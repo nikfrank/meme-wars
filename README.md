@@ -41,7 +41,7 @@ or, if your installations are ferkakte for react app version
 
 in order to have multiple pages on our front end, we will install a client side router
 
-`$ npm i -S react-router-dom`
+`$ npm i -S react-router react-router-dom`
 
 
 here we will start with a Single Page App boilerplate
