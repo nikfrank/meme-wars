@@ -614,11 +614,12 @@ here we will use sequelize, a nodeJS module ORM with support for all popular var
 
 ### connecting to the database
 
+<sub>./server/index.js</sub>
 ```js
 
 const ORM = require('sequelize');
 
-const connection = new ORM('postgres://meme-wars:guest@localhost:5432/meme-wars');
+const connection = new ORM('postgres://memewars:guest@localhost:5432/memewars');
 
 ```
 
