@@ -672,28 +672,82 @@ here, we will need models for
 here, let's review a model for User, which we will use as a basis for building our other models
 
 ```js
-const User = connection.define('user', {
-  // attributes
-  name: {
-    type: ORM.STRING,
-    allowNull: false
-  },
-  id: {
-    type: ORM.INTEGER,
-    primaryKey: true,
-    autoIncrement: true,
-  },
-});
+  const User = connection.define('user', {
+    id: {
+      type: ORM.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    name: {
+      type: ORM.TEXT,
+      allowNull: false,
+      unique: true,
+    },
+  }, { freezeTableName: true });
 ```
 
 ### meme model
 
-...
+```js
+  const Meme = connection.define('meme', {
+    id: {
+      type: ORM.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    imgUrl: {
+      type: ORM.TEXT,
+      allowNull: false,
+    },
+    author: {
+      type: ORM.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'user',
+        key: 'id',
+      },
+    },
+  }, { freezeTableName: true });
+
+```
 
 
 ### vote model
 
-...
+```js
+  const Vote = connection.define('vote', {
+    id: {
+      type: ORM.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    winner: {
+      type: ORM.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'meme',
+        key: 'id',
+      },
+    },
+    loser: {
+      type: ORM.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'meme',
+        key: 'id',
+      },
+    },
+    voter: {
+      type: ORM.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'user',
+        key: 'id',
+      },
+    },
+  }, { freezeTableName: true });
+
+```
 
 
 
@@ -708,6 +762,19 @@ app.get('/hydrate', (req, res)=> {
 });
 ```
 
+now when we want to run this on all of our models, we need to do them in order, as each one referes to the previous
+
+```js
+
+app.get('/hydrate', (req, res)=> {
+  User.sync({ force: true })
+    .then(()=> Meme.sync({ force: true }))
+    .then(()=> Vote.sync({ force: true }))
+    .then(()=> res.json({ message: 'success creating User, Meme, Vote tables' }))
+    .catch(err => res.status(500).json({ message: JSON.stringify(err) }));
+});
+```
+
 ### reading and writing data
 
 now we're ready to write data and read it out!
@@ -717,17 +784,51 @@ now we're ready to write data and read it out!
 ```js
 
 app.post('/user', (req, res)=> {
-  User.create({ name: 'nik' }).then(u => {
+  User.create(req.body).then(u => {
     console.log(u);
-    res.json([u]);
+    res.json({ message: 'create user' });
   });
 });
 
 app.get('/user/:id', (req, res)=> {
-  User.findByPk(1*req.params.id).then(u => res.json([u]));
+  User.findByPk(1*req.params.id).then(u => res.json(u));
 });
 
 ```
+
+similarly for the other two models
+
+```js
+
+app.post('/meme', (req, res)=> {
+  Meme.create(req.body).then(u => {
+    console.log(u);
+    res.json({ message: 'create meme' });
+  });
+});
+
+app.get('/meme/:id', (req, res)=> {
+  Meme.findByPk(1*req.params.id).then(u => res.json(u));
+});
+
+```
+
+
+```js
+
+app.post('/vote', (req, res)=> {
+  Vote.create(req.body).then(u => {
+    console.log(u);
+    res.json({ message: 'create vote' });
+  });
+});
+
+app.get('/vote/:id', (req, res)=> {
+  Vote.findByPk(1*req.params.id).then(u => res.json(u));
+});
+
+```
+
 
 and now on the browser we can load [localhost:4000](http://localhost:4000)
 
@@ -750,15 +851,309 @@ or build the equivalent request in POSTMAN
 
 now we can test [localhost:4000/user/1](http://localhost:4000/user/1)
 
-to see our created user!
+[localhost:4000/meme/1](http://localhost:4000/meme/1)
 
+[localhost:4000/vote/1](http://localhost:4000/vote/1)
 
+to see our created user, meme and vote!
 
 
 
 
 
 [for reference, here's the list of datatypes we have available](http://docs.sequelizejs.com/manual/data-types.html)
+
+
+
+
+
+
+
+
+
+
+### sign up user integration
+
+let's use our login page for now to act as a sign up
+
+we'll return to this later when we build our session / identity management
+
+for now, we're interested in sending the `username` and `password` to our `CREATE USER` route
+
+
+
+<sub>./src/Login.js</sub>
+```js
+  login = ()=> {
+    fetch('/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: this.state.username,
+        password: this.state.password,
+      }),
+    }).then(response => response.status < 300 ?
+                        response.json() :
+                        response.json().then(err => Promise.reject(err)))
+      .then(jsonResponse => {
+        console.log('response from create user', jsonResponse);
+        this.setState({ toVote: true });
+      })
+      .catch(err => console.error('create user failed with', err));
+  }
+```
+
+now we will want to know our user id in the front end in order to complete our meme upload (we need it for the `author` field
+
+
+let's make sure the server responds with it
+
+
+<sub>./server/api.js</sub>
+```js
+  app.post('/user', (req, res)=>{
+    User.create(req.body)
+        .then(response=> res.json({
+           message: 'user created',
+           userId: response.dataValues.id,
+         }))
+        .catch(err => {
+          res.status(500).json({ message: JSON.stringify(err) })
+        });
+  });
+```
+
+and now we can store the `userId` in `localStorage` on response, so we can use it as a session variable around the application
+
+
+<sub>./src/Login.js</sub>
+```js
+      .then(jsonResponse => {
+        console.log('response from create user', jsonResponse);
+        
+        localStorage.userId = jsonResponse.userId;
+        this.setState({ toVote: true });
+      })
+      .catch(err => console.error('create user failed with', err));
+```
+
+
+
+
+### create meme integration
+
+here, we want to use the `localStorage.userId` we set in the Login success as the upload's `author` field
+
+
+<sub>./src/Meme.js</sub>
+```js
+  upload = ()=>{
+    fetch('/meme', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imgUrl: this.state.imgUrl,
+        author: 1*localStorage.userId,
+      }),
+    }).then(response=> response.status < 300 ?
+                                         this.setState({ imgUrl: '' }) :
+                                         console.error('upload failed')
+    )
+  }
+```
+
+
+remembering of course to cast it to `Number` before we send it!
+
+
+
+### reading memes from the databas for voting
+
+let's replace the default `imgUrls` in our voting page with memes we load from the database!
+
+
+#### read all memes route
+
+<sub>./server/api.js</sub>
+```js
+  app.get('/meme', (req, res)=>{
+    Meme.findAll().then(memes => res.json(memes));
+  });
+```
+
+
+#### front end integration
+
+
+first, we can get rid of the existing array
+
+<sub>./src/Vote.js</sub>
+```js
+  state = {
+    imgUrls: [],
+
+    firstImg: null,
+    secondImg: null,
+  }
+
+```
+
+
+careful! now our render function will fail, as we don't have any images to render
+
+
+let's put in a condition for rendering images (that we have images to render)
+
+```html
+  render(){
+    return (
+      <div className='Vote Page'>
+        <div className='img-box'>
+          { this.state.imgUrls.length ? (
+              <>
+                <div className='vote-img' style={{
+                  backgroundImage: `url(${this.state.imgUrls[this.state.firstImg]})`
+                }} onClick={this.voteFirst}/>
+                <div className='vote-img' style={{
+                  backgroundImage: `url(${this.state.imgUrls[this.state.secondImg]})`
+                }} onClick={this.voteSecond}/>
+              </>
+          ): null }
+        </div>
+      </div>
+    );
+  }
+```
+
+
+now we're ready to load the images
+
+
+we can use the `componentDidMount(){ ... }` lifecycle function to load all memes when the page is selected
+
+```js
+  componentDidMount(){
+    console.log('Vote mount');
+
+    fetch('/meme', { headers: { 'Content-Type': 'application/json' }})
+      .then(response => response.json())
+      .then(memes => this.setState({ memes, firstImg: 0, secondImg: 1 }) );
+  }
+```
+
+but now we need to rework the `state` a bit...
+
+before, we were using just the `imgUrl`
+
+however, now when we vote, we'll want to know the `id` of the meme, so we should switch over to using `this.state.memes`
+
+
+```js
+  state = {
+    memes: [],
+
+    firstImg: null,
+    secondImg: null,
+  }
+
+  pickNextImgs = ()=> {
+    const nextFirstImg = Math.floor(Math.random() * this.state.memes.length);
+    let nextSecondImg = Math.floor(Math.random() * this.state.memes.length);
+    while(nextSecondImg === nextFirstImg)
+      nextSecondImg = Math.floor(Math.random() * this.state.memes.length);
+
+    this.setState({
+      firstImg: nextFirstImg,
+      secondImg: nextSecondImg,
+    });
+  }
+
+```
+
+and in the render
+
+```
+  render(){
+    return (
+      <div className='Vote Page'>
+        <div className='img-box'>
+          { this.state.memes.length ? (
+              <>
+                <div className='vote-img' style={{
+                  backgroundImage: `url(${this.state.memes[this.state.firstImg].imgUrl})`
+                }} onClick={this.voteFirst}/>
+                <div className='vote-img' style={{
+                  backgroundImage: `url(${this.state.memes[this.state.secondImg].imgUrl})`
+                }} onClick={this.voteSecond}/>
+              </>
+          ): null }
+        </div>
+      </div>
+    );
+  }
+```
+
+now we'll be ready to create votes through the API!
+
+
+
+### voting
+
+<sub>./src/Vote.js</sub>
+```js
+  vote = (winner, loser)=>
+    fetch('/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        winner, loser, voter: 1*localStorage.userId,
+      }),
+    }).then(response=> response.status < 300 ?
+                                         Promise.resolve() :
+                                         Promise.reject())
+      .then(()=> this.pickNextImgs())
+      .catch(()=> console.log('voting failed') );
+
+  
+  voteFirst = ()=> this.vote(
+    this.state.memes[this.state.firstImg].id,
+    this.state.memes[this.state.secondImg].id,
+  )
+
+  voteSecond = ()=> this.vote(
+    this.state.memes[this.state.secondImg].id,
+    this.state.memes[this.state.firstImg].id,
+  )
+```
+
+
+
+
+
+### read all votes
+
+now that we have all these votes, let's make an easy way to read them all
+
+(just like read all memes before)
+
+<sub>./server/api.js</sub>
+```js
+  app.get('/vote', (req, res)=>{
+    Vote.findAll().then(votes => res.json(votes));
+  });
+```
+
+
+
+
+
+### read memes 10 at a time
+
+
+
+
+
+## integrating our API to our front end
 
 
 

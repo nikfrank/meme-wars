@@ -16,8 +16,22 @@ class Login extends React.Component {
     this.setState({ password: event.target.value })
 
   login = ()=> {
-    console.log('pretend to check password');
-    this.setState({ toVote: true });
+    fetch('/user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: this.state.username,
+                             password: this.state.password }),
+    }).then(response => response.status < 300 ?
+                                          response.json() :
+                                          response.json()
+                                                  .then(err => Promise.reject(err)))
+      .then(jsonResponse => {
+        console.log('response from create user', jsonResponse);
+        
+        localStorage.userId = jsonResponse.userId;
+        this.setState({ toVote: true });
+      })
+      .catch(err => console.error('create user failed with', err));
   }
 
   componentDidMount(){
