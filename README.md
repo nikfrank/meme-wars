@@ -672,7 +672,7 @@ here, we will need models for
 here, let's review a model for User, which we will use as a basis for building our other models
 
 ```js
-const User = sequelize.define('user', {
+const User = connection.define('user', {
   // attributes
   name: {
     type: ORM.STRING,
