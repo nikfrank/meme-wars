@@ -1147,22 +1147,295 @@ now that we have all these votes, let's make an easy way to read them all
 
 
 
-### read memes 10 at a time
+## deployment
+
+here's the tasks we have left before we can deploy our application to the cloud:
+
+ - generating some fake data to start the database with
+ - Results page (best / worst) columns
+ - splitting sign up and log in (with hashed database passwords)
+   - authentication checks on (create meme, vote)
+
+
+### generating fake data to start the database with
+
+this is called "hydrating the database", which is why we named our route like that
+
+so far we have
+
+<sub>./server/index.js</sub>
+```js
+
+app.get('/hydrate', (req, res)=> {
+  User.sync({ force: true })
+    .then(()=> Meme.sync({ force: true }))
+    .then(()=> Vote.sync({ force: true }))
+    .then(()=> res.json({ message: 'success creating User, Meme, Vote tables' }))
+    .catch(err => res.status(500).json({ message: JSON.stringify(err) }));
+});
+```
+
+which drops our tables and remakes them when we make a GET request to /hydrate
+
+
+now, where we have `()=> res.json(...)` in our final callback in our `.then` Promise chain, we have already finished making our tables - and so far all we're doing is responding to the request with a success message
+
+let's use the opportunity now to put some records in to the newly created tables
+
+first we'll make our function into a full bodied fat arrow
+
+```js
+app.get('/hydrate', (req, res)=> {
+  User.sync({ force: true })
+      .then(()=> Meme.sync({ force: true }))
+      .then(()=> Vote.sync({ force: true }))
+      .then(()=> {
+        res.json({ message: 'success creating User, Meme, Vote tables' })
+      })
+      .catch(err => res.status(500).json({ message: JSON.stringify(err) }));
+});
+```
+
+now we can [google](https://www.google.com/search?q=sequelize+bulkcreate) for a sequlize method to [insert bulk records to our db](http://docs.sequelizejs.com/class/lib/model.js~Model.html#static-method-bulkCreate)
+
+
+#### fake users
+
+
+we'll need an array of Users to make:
+
+```js
+        const users = [{ name: 'nik' }, { name: 'dan' }, { name: 'raphael' }];
+```
+
+so now we can put them in the database with `bulkCreate`
+
+```js
+      .then(()=> {
+        const users = [{ name: 'nik' }, { name: 'dan' }, { name: 'raphael' }];
+
+        User.bulkCreate(users, { returning: true })
+            .then(usersResponse => {
+              console.log(usersResponse);
+              res.json({ message: 'success creating User, Meme, Vote tables' })
+            });
+      })
+
+```
+
+we'll need the `id`s that are created on the `User`s to put onto the `Meme`s and `Vote`s
+
+so let's take a look at the log output to userstand the format of sequelize's response
+
+```js
+[ { dataValues:
+    { id: 1,
+      name: 'nik',
+      createdAt: 2019-07-05T11:46:53.104Z,
+      updatedAt: 2019-07-05T11:46:53.104Z },
+    ...
+  },
+  ...
+]
+```
+
+so it looks like we have an array of responseObjects that we'll need to map out `dataValues` from
+
+```js
+      .then(()=> {
+        const users = [{ name: 'nik' }, { name: 'dan' }, { name: 'raphael' }];
+
+        User.bulkCreate(users, { returning: true })
+            .then(usersResponse => {
+              console.log(usersResponse.map(u=> u.dataValues) );
+              res.json({ message: 'success creating User, Meme, Vote tables' })
+            });
+      })
+
+```
+
+great! now we have our JSON copies of the `User`s with the `id`s that we need
+
+let's return them from our Promise so we can chain our next function
+
+```js
+      .then(()=> {
+        const users = [{ name: 'nik' }, { name: 'dan' }, { name: 'raphael' }];
+
+        User.bulkCreate(users, { returning: true })
+            .then(usersResponse => usersResponse.map(u=> u.dataValues) )
+            .then((createdUsers => {
+              res.json({ message: 'success creating User, Meme, Vote tables' })
+            });
+      })
+```
+
+even better, if we return the Promise from `User.bulkCreate` then we can chain onto that Promise with no nesting
+
+```js
+
+app.get('/hydrate', (req, res)=> {\
+  const users = [{ name: 'nik' }, { name: 'dan' }, { name: 'raphael' }];
+  
+  User.sync({ force: true })
+      .then(()=> Meme.sync({ force: true }))
+      .then(()=> Vote.sync({ force: true }))
+      .then(()=>
+        User.bulkCreate(users, { returning: true })
+            .then(usersResponse => usersResponse.map(u=> u.dataValues) )
+        
+      ).then((createdUsers => {
+        res.json({ message: 'success creating User, Meme, Vote tables' })
+        
+      }).catch(err => res.status(500).json({ message: JSON.stringify(err) }));
+});
+
+```
+
+
+I've also moved the `const users` declaration for convenience
+
+
+#### fake memes
+
+now that we have `id`s to put as `author` on our `Meme`s, we can generate `Meme`s in our hydrate
+
+
+```js
+      .then((createdUsers => {
+        const memes = memeUrls.map((imgUrl, i) => ({
+          imgUrl, author: createdUsers[i % createdUsers.length].id,
+        }) );
+        
+        res.json({ message: 'success creating User, Meme, Vote tables' })
+        
+      })
+```
+
+
+and now we can `bulkCreate` those
+
+
+```js
+        Meme.bulkCreate(memes, { returning: true })
+            .then(memesResponse => memesResponse.map(m => m.dataValues) )
+```
+
+we'll want to keep the chain going, so let's return the Promise and chain on the next one
+
+
+```js
+      ).then((createdUsers => {
+        const memes = memeUrls.map((imgUrl, i) => ({
+          imgUrl, author: createdUsers[i % createdUsers.length].id,
+        }) );
+
+        return Meme.bulkCreate(memes, { returning: true })
+                   .then(memesResponse => memesResponse.map(m => m.dataValues) )
+        
+      }).then(createdMemes => {
+        res.json({ message: 'success creating User, Meme, Vote tables' })
+        
+      }).catch(err => res.status(500).json({ message: JSON.stringify(err) }));
+
+```
+
+
+#### fake votes
+
+in our last callback, we get out the `createdMemes`... however, in order to make fake votes we'll need `User` `id`s AND `Meme` `id`s
+
+so, we'll have to keep track of the created `User`s from a higher lexical scope (the routehandler)
+
+first, let's change our `users` array to `let` so we can override it with database `User`s
+
+```js
+  let users = [{ name: 'nik' }, { name: 'dan' }, { name: 'raphael' }];
+```
+
+so now when we create the `User`s we can override it
+
+```js
+      ).then(createdUsers => {
+        users = createdUsers;
+        
+        const memes = memeUrls.map((imgUrl, i) => ({
+          imgUrl, author: createdUsers[i % createdUsers.length].id,
+        }) );
+
+        return Meme.bulkCreate(memes, { returning: true })
+                   .then(memesResponse => memesResponse.map(m => m.dataValues) )
+
+```
+
+now once we get to creating votes, we'll have `createdMemes` and `users` to draw `id` values from
+
+for votes, we'll want to generate a lot (100) votes
+
+whereas we could just type them all out, it'll be easier to use a generator function.
+
+let's see what that looks like
+
+```js
+
+        const votes = [...Array(100)].map(()=> {
+          return { /* vote object literal */ };
+        });
+```
+
+now we can fill in the `vote` with randomly selected memes and users
+
+```js
+      .then(createdMemes => {
+        const votes = [...Array(100)].map(()=> {
+          const winner = createdMemes[ Math.floor(Math.random()*createdMemes.length) ].id;
+          let loser = winner;
+          while( loser === winner )
+            loser = createdMemes[ Math.floor(Math.random()*createdMemes.length) ].id;
+
+          const voter = users[ Math.floor(Math.random()*users.length) ].id;
+          
+          return { winner, loser, voter };
+        });
+```
+
+and bulk create the votes
+
+```js
+        return Vote.bulkCreate(votes);
+        
+      }).then(()=> {
+        res.json({ message: 'success creating User, Meme, Vote tables' })
+        
+      })
+```
+
+
+### results page
+
+the users are going to want to see what the most popular memes are
+
+let's read out the votes in our `Results` view and sort by winning percentage
+
+
+
+### user passwords
+
+the last feature we need before going to production is actual user sign in and security
+
+we will build this in four steps
+
+1. adding "passwordHash" to the database, and calculating it when creating users
+2. POST /login, which will check the passwordHash and issue a session token or 401
+3. replacing our `localStorage.userId` with the new jwt token, send it with requests
+4. auth middleware, which will check the session token and allow / 401/3 each request
 
 
 
 
+### heroku assets
 
-## integrating our API to our front end
-
-
-
-
-
-
-
-
-
+we will need to configure a postgres database in heroku, and find out whence to read the connection string
 
 
 
