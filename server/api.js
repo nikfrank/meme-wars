@@ -1,12 +1,44 @@
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+
 module.exports = (app, { User, Meme, Vote })=>{
   app.post('/user', (req, res)=>{
-    User.create(req.body)
+    let user = {
+      name: req.body.name,
+      passwordHash: crypto.pbkdf2Sync(req.body.password, 'salt', 100, 64, 'sha512')
+                          .toString('hex'),
+    };
+    
+    User.create(user)
         .then((r)=> res.json({ message: 'user created', userId: r.dataValues.id }))
         .catch(err => {
           res.status(500).json({ message: JSON.stringify(err) })
         });
   });
 
+  app.post('/login', (req, res)=> {
+    const passwordAttemptHash = crypto
+      .pbkdf2Sync(req.body.password, 'salt', 100, 64, 'sha512')
+      .toString('hex');
+    
+    User.findOne({ where: { name: req.body.name }})
+        .then(userResponse => {
+          const user = userResponse.dataValues;
+          if( user.passwordHash !== passwordAttemptHash )
+            return Promise.reject(401);
+          else
+            jwt.sign({
+              userId: user.id,
+              username: user.name,
+              exp: Date.now() + 86400000,
+              
+            }, 'secret code', (err, token)=>{
+              res.json({ token });
+            });
+        })
+        .catch(code => res.status(code).end())
+  });
+  
   app.get('/user/:id', (req, res)=>{
     User.findByPk(1*req.params.id)
       .then(user => res.json(user));

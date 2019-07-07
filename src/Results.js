@@ -33,11 +33,11 @@ class Results extends React.Component {
         bestMemes: memes.sort((a, b)=> (
           (this.state.winByMeme[a.id].wins / this.state.winByMeme[a.id].total ) >
           (this.state.winByMeme[b.id].wins / this.state.winByMeme[b.id].total ) ? 1 : -1
-        )).slice(0, 5),
+        )).slice(0, 3),
         worstMemes: memes.sort((a, b)=> (
           (this.state.winByMeme[a.id].wins / this.state.winByMeme[a.id].total ) <
           (this.state.winByMeme[b.id].wins / this.state.winByMeme[b.id].total ) ? 1 : -1
-        )).slice(0, 5),
+        )).slice(0, 3),
       }) )
   }
 

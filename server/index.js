@@ -2,6 +2,8 @@ const express = require('express');
 const app = express();
 const port = process.env.PORT || 4000;
 
+const crypto = require('crypto');
+
 const ORM = require('sequelize');
 const connection = new ORM('postgres://memewars:guest@localhost:5432/memewars');
 
@@ -18,7 +20,19 @@ connection.authenticate()
   .catch((err)=> console.log(err));
 
 app.get('/hydrate', (req, res)=> {
-  let users = [{ name: 'nik' }, { name: 'dan' }, { name: 'raphael' }];
+  let guestPassword = crypto.pbkdf2Sync('guest', 'salt', 100, 64, 'sha512')
+                        .toString('hex');
+  
+  let users = [{
+    name: 'nik',
+    passwordHash: guestPassword,
+  }, {
+    name: 'dan',
+    passwordHash: guestPassword,
+  }, {
+    name: 'raphael',
+    passwordHash: guestPassword,
+  }];
 
   const memeUrls = [
     'http://theawkwardyeti.com/wp-content/uploads/2015/01/0121_Heartwatchesthenews.png',

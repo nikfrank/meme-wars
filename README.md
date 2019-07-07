@@ -1549,6 +1549,181 @@ we will build this in four steps
 
 
 
+### adding "passwordHash" to the database, and calculating it when creating users
+
+let's add a field to our User model to save the hashed password into
+
+<sub>./server/models.js</sub>
+```js
+    passwordHash: {
+      type: ORM.TEXT,
+      allowNull: false,
+    },
+```
+
+now when the front end requests to create a user, we'll calculate a hash from the password to save
+
+<sub>./server/api.js</sub>
+```js
+const crypto = require('crypto');
+
+  app.post('/user', (req, res)=>{
+    let user = {
+      name: req.body.name,
+      passwordHash: crypto.pbkdf2Sync(req.body.password, 'salt', 100, 64, 'sha512')
+                          .toString('hex'),
+    };
+    
+    User.create(user)
+        .then((r)=> res.json({ message: 'user created', userId: r.dataValues.id }))
+        .catch(err => {
+          res.status(500).json({ message: JSON.stringify(err) })
+        });
+  });
+
+```
+
+one last thing: we need to update our fake data to have passwords:
+
+<sub>./src/index.js</sub>
+```js
+const crypto = require('crypto');
+
+//...
+
+  let guestPassword = crypto.pbkdf2Sync('guest', 'salt', 100, 64, 'sha512')
+                        .toString('hex');
+  
+  let users = [{
+    name: 'nik',
+    passwordHash: guestPassword,
+  }, {
+    name: 'dan',
+    passwordHash: guestPassword,
+  }, {
+    name: 'raphael',
+    passwordHash: guestPassword,
+  }];
+
+  //...
+```
+
+now we can build login (and test it by trying 'guest' as everyone's password)
+
+
+
+### POST /login, which will check the passwordHash and issue a session token or 401
+
+now we can add another API route to login
+
+we need to check that the passwordHash matches
+
+<sub>./server/api.js</sub>
+```js
+  app.post('/login', (req, res)=> {
+    const passwordAttemptHash = crypto
+      .pbkdf2Sync(req.body.password, 'salt', 100, 64, 'sha512')
+      .toString('hex');
+
+      //...
+```
+
+first we calculcate the hash from the password attempted
+
+next we'll load the user by name from the db and check for equality
+
+
+```js
+    User.findOne({ where: { name: req.body.name }})
+        .then(userResponse => {
+          const user = userResponse.dataValues;
+          if( user.passwordHash !== passwordAttemptHash )
+            return Promise.reject(401);
+          else
+            res.json({}); // here we want to make a token!
+        })
+        .catch(code => res.status(code).end())
+  });
+
+```
+
+last thing to do is create a jwt and send it back with the successful response
+
+
+`$ npm i -S jsonwebtoken`
+
+
+```js
+const jwt = require('jsonwebtoken');
+
+//...
+
+          else
+            jwt.sign({
+              userId: user.id,
+              username: user.name,
+              exp: Date.now() + 86400000,
+              
+            }, 'secret code', (err, token)=>{
+              res.json({ token });
+            });
+
+```
+
+now our API will respond with the jwt which will identify the user cryptographically.
+
+we will have to replace all userId usage on the front end with a session variable in an express middleware... more on that in a bit.
+
+
+#### calling the login route
+
+we can call the login and sign up the same way
+
+<sub>./src/Login.js</sub>
+```js
+  login = (url)=> {
+    fetch('/'+url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: this.state.username,
+                             password: this.state.password }),
+    }).then(response => response.status < 300 ?
+                                          response.json() :
+                                          response.json()
+                                                  .then(err => Promise.reject(err)))
+
+```
+
+but now we should save the token, not the userId
+
+```js
+      .then(jsonResponse => {
+        console.log('response from create user', jsonResponse);
+        
+        localStorage.token = jsonResponse.token;
+        this.setState({ toVote: true });
+      })
+      .catch(err => console.error('create user failed with', err));
+  }
+```
+
+```html
+
+          <button onClick={()=> this.login('login')}>Login</button>
+          <button onClick={()=> this.login('user')}>Signup</button>
+
+```
+
+
+### replacing our `localStorage.userId` with the new jwt token, send it with requests
+
+
+### auth middleware, which will check the session token and allow / 401/3 each request
+#### replacing `author` and `voter` with the session userId from decrypted token
+
+
+
+
 
 ### heroku assets
 

@@ -15,8 +15,8 @@ class Login extends React.Component {
   setPassword = (event)=>
     this.setState({ password: event.target.value })
 
-  login = ()=> {
-    fetch('/user', {
+  login = (url)=> {
+    fetch('/'+url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: this.state.username,
@@ -28,7 +28,7 @@ class Login extends React.Component {
       .then(jsonResponse => {
         console.log('response from create user', jsonResponse);
         
-        localStorage.userId = jsonResponse.userId;
+        localStorage.token = jsonResponse.token;
         this.setState({ toVote: true });
       })
       .catch(err => console.error('create user failed with', err));
@@ -59,7 +59,8 @@ class Login extends React.Component {
                    value={this.state.password}
                    onChange={this.setPassword}/>
           </label>
-          <button onClick={this.login}>Login</button>
+          <button onClick={()=> this.login('login')}>Login</button>
+          <button onClick={()=> this.login('user')}>Signup</button>
         </div>
       </div>
     );
