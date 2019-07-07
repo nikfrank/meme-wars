@@ -1417,6 +1417,123 @@ the users are going to want to see what the most popular memes are
 
 let's read out the votes in our `Results` view and sort by winning percentage
 
+we'll want to load the data when the page is selected, so let's use the `componentDidMount` lifecycle again
+
+
+```js
+  componentDidMount(){
+    fetch('...')
+  }
+```
+
+we made a GET /vote which responds with all the votes, so let's use that
+
+```js
+state = { votes: [] }
+  
+  componentDidMount(){
+    fetch('/vote')
+      .then(response=> response.json())
+      .then(votes => this.setState({ votes }) )
+  }
+```
+
+but what are we going to render?
+
+we want the top winners and losers based on all votes
+
+so maybe we ought to calculate the win % for each meme when we get them (or else we'll have to do that calculation on every render... EXPENSIVE)
+
+
+```js
+      .then(votes => this.setState({
+        votes,
+        winByMeme: votes.reduce((totals, vote)=> ({
+          ...totals,
+          [vote.winner]: ({
+            wins: (totals[vote.winner] || { wins: 0 }).wins + 1,
+            losses: (totals[vote.winner] || { losses: 0 }).losses,
+            total: (totals[vote.winner] || { total: 0 }).total + 1,
+          }),
+          [vote.loser]: ({
+            wins: (totals[vote.loser] || { wins: 0 }).wins,
+            losses: (totals[vote.loser] || { losses: 0 }).losses + 1,
+            total: (totals[vote.loser] || { total: 0 }).total + 1,
+          }),
+        }), {}),
+      }) )
+
+```
+
+now we'll be able to calculate the win % easily and sort in the render
+
+
+let's also grab all the memes on `componentDidMount` so we'll be able to render them
+
+(you may be thinking these "get all" requests are slow and clunky. you are right - we should really replace them with one "get best/worst" API call....)
+
+
+```js
+      .then(()=> fetch('/meme').then(response=> response.json()))
+      .then(memes => this.setState({
+        memes,
+        bestMemes: memes.sort(),
+        worstMemes: memes.sort(),
+      }) )
+```
+
+and for good measure, we'll need to use the `state.winByMeme` we made in the last callback to sort the memes
+
+```js
+      .then(memes => this.setState({
+        memes,
+        bestMemes: memes.sort((a, b)=> (
+          (this.state.winByMeme[a.id].wins / this.state.winByMeme[a.id].total ) >
+          (this.state.winByMeme[b.id].wins / this.state.winByMeme[b.id].total ) ? 1 : -1
+        )).slice(0, 5),
+        worstMemes: memes.sort((a, b)=> (
+          (this.state.winByMeme[a.id].wins / this.state.winByMeme[a.id].total ) <
+          (this.state.winByMeme[b.id].wins / this.state.winByMeme[b.id].total ) ? 1 : -1
+        )).slice(0, 5),
+      }) )
+```
+
+
+#### rendering the best / worst
+
+first we'll add empty arrays to our initial state to avoid first time render crash
+
+```js
+  state = {
+    votes: [],
+    bestMemes: [],
+    worstMemes: [],
+  }
+```
+
+now we can render lists
+
+```html
+
+      <div className='Results Page'>
+        Best
+        <ul className='best-memes'>
+          {this.state.bestMemes.map((meme)=>(
+             <img style={{ height: 100, width: 'auto' }} src={meme.imgUrl}
+                  key={meme.imgUrl}/>
+           ))}
+        </ul>
+
+        Worst
+        <ul className='worst-memes'>
+          {this.state.worstMemes.map((meme)=>(
+             <img style={{ height: 100, width: 'auto' }} src={meme.imgUrl}
+                  key={meme.imgUrl}/>
+           ))}
+        </ul>
+      </div>
+```
+
 
 
 ### user passwords
