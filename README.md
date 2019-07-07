@@ -1662,7 +1662,6 @@ const jwt = require('jsonwebtoken');
             jwt.sign({
               userId: user.id,
               username: user.name,
-              exp: Date.now() + 86400000,
               
             }, 'secret code', (err, token)=>{
               res.json({ token });
@@ -1717,10 +1716,122 @@ but now we should save the token, not the userId
 
 ### replacing our `localStorage.userId` with the new jwt token, send it with requests
 
+in our requests for create vote and create meme, we used the `userId` that previously stored in the localStorage.
+
+now we will send along the jwt on those requests as an `Authorization` header, and the server will read the userId for us out of that
+
+this is also how we'll confirm that the user is signed in to make those requests
+
+
+<sub>./src/Meme.js</sub>
+```js
+  upload = ()=>{
+    fetch('/meme', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer '+localStorage.token,
+      },
+      body: JSON.stringify({
+        imgUrl: this.state.imgUrl,
+      }),
+    })
+```
+
+<sub>./src/Vote.js</sub>
+```js
+  vote = (winner, loser)=>
+    fetch('/vote', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer '+localStorage.token,
+      },
+      body: JSON.stringify({
+        winner, loser,
+      }),
+    })
+```
+
 
 ### auth middleware, which will check the session token and allow / 401/3 each request
-#### replacing `author` and `voter` with the session userId from decrypted token
 
+now the fun part!
+
+when the API receives POST /vote and POST /meme, we now want to add a step before handling the request to interpret the Authorization header
+
+we will use express's most powerful asset: the middleware
+
+here, we'll read the token, parse it
+
+ - if it is valid, we'll set a session variable and use it from our routes
+ - otherwise, we'll return a 401
+
+`$ touch auth.js`
+
+<sub>./server/auth.js</sub>
+```js
+module.exports = (req, res, next)=> {
+  
+};
+```
+
+this is the boilerplate for a middleware. `req` and `res` are the same request and response objects express normally gives us in a routehandler
+
+`next` is a function which let's us move to the next middleware or finally the routehandler.
+
+
+now we need to program it to read the jwt [check the docs here](https://github.com/auth0/node-jsonwebtoken)
+
+
+<sub>./server/auth.js</sub>
+```js
+const jwt = require('jsonwebtoken');
+
+module.exports = (req, res, next)=> {
+  jwt.verify( req.get('Authorization').split(' ')[1], 'secret code', (err, decoded)=>{
+    if(err) console.error(err)|| res.status(401).end();
+    else {
+      req.session = decoded;
+      next();
+    }
+  });
+};
+```
+
+now we just need to use the `req.session.userId` in the two Create routes
+
+<sub>./server/api.js</sub>
+```js
+const auth = require('./auth');
+
+//...
+
+  app.post('/meme', auth, (req, res)=>{
+    Meme.create({...req.body, author: req.session.userId })
+        .then(()=> res.json({ message: 'meme created' }))
+        .catch(err => {
+          res.status(500).json({ message: JSON.stringify(err) })
+        });
+  });
+
+//...
+
+
+  app.post('/vote', auth, (req, res)=>{
+    Vote.create({...req.body, voter: req.session.userId })
+        .then(()=> res.json({ message: 'vote created' }))
+        .catch(err => {
+          res.status(500).json({ message: JSON.stringify(err) })
+        });
+  });
+
+```
+
+
+we can also choose to protect any route we want with this auth middleware!
+
+that's what's so great about it - we can write it once and use it on all our API routes!
 
 
 

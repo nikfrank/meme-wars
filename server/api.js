@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
+const auth = require('./auth');
+
 module.exports = (app, { User, Meme, Vote })=>{
   app.post('/user', (req, res)=>{
     let user = {
@@ -30,7 +32,6 @@ module.exports = (app, { User, Meme, Vote })=>{
             jwt.sign({
               userId: user.id,
               username: user.name,
-              exp: Date.now() + 86400000,
               
             }, 'secret code', (err, token)=>{
               res.json({ token });
@@ -44,8 +45,8 @@ module.exports = (app, { User, Meme, Vote })=>{
       .then(user => res.json(user));
   });
 
-  app.post('/meme', (req, res)=>{
-    Meme.create(req.body)
+  app.post('/meme', auth, (req, res)=>{
+    Meme.create({...req.body, author: req.session.userId })
         .then(()=> res.json({ message: 'meme created' }))
         .catch(err => {
           res.status(500).json({ message: JSON.stringify(err) })
@@ -61,8 +62,8 @@ module.exports = (app, { User, Meme, Vote })=>{
     Meme.findAll().then(memes => res.json(memes));
   });
 
-  app.post('/vote', (req, res)=>{
-    Vote.create(req.body)
+  app.post('/vote', auth, (req, res)=>{
+    Vote.create({...req.body, voter: req.session.userId })
         .then(()=> res.json({ message: 'vote created' }))
         .catch(err => {
           res.status(500).json({ message: JSON.stringify(err) })

@@ -12,10 +12,12 @@ class Meme extends React.Component {
   upload = ()=>{
     fetch('/meme', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer '+localStorage.token,
+      },
       body: JSON.stringify({
         imgUrl: this.state.imgUrl,
-        author: 1*localStorage.userId,
       }),
     }).then(response=> response.status < 300 ?
                                          this.setState({ imgUrl: '' }) :
