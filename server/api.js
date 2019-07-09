@@ -18,7 +18,7 @@ module.exports = (app, { User, Meme, Vote })=>{
         });
   });
 
-  app.post('/login', (req, res)=> {
+  app.post('/log-in', (req, res)=> {
     const passwordAttemptHash = crypto
       .pbkdf2Sync(req.body.password, 'salt', 100, 64, 'sha512')
       .toString('hex');

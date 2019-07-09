@@ -59,7 +59,7 @@ class Login extends React.Component {
                    value={this.state.password}
                    onChange={this.setPassword}/>
           </label>
-          <button onClick={()=> this.login('login')}>Login</button>
+          <button onClick={()=> this.login('log-in')}>Login</button>
           <button onClick={()=> this.login('user')}>Signup</button>
         </div>
       </div>
